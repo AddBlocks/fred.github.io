@@ -6,6 +6,7 @@
   <title>Battery Sender</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
     body {
       font-family: system-ui, -apple-system, sans-serif;
       background: #0d1117;
@@ -16,7 +17,9 @@
       align-items: center;
       justify-content: center;
       padding: 24px;
+      gap: 0;
     }
+
     .card {
       width: 100%;
       max-width: 340px;
@@ -26,64 +29,164 @@
       padding: 32px 24px;
       text-align: center;
     }
+
     .icon-wrap {
-      width: 64px; height: 64px;
+      width: 64px;
+      height: 64px;
       border-radius: 50%;
       background: #1c2330;
       border: 1px solid #30363d;
-      display: flex; align-items: center; justify-content: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       margin: 0 auto 20px;
       font-size: 28px;
     }
-    h1 { font-size: 1.1rem; font-weight: 600; margin-bottom: 6px; }
-    .subtitle { font-size: 0.8rem; color: #8b949e; margin-bottom: 28px; line-height: 1.5; }
+
+    h1 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      margin-bottom: 6px;
+    }
+
+    .subtitle {
+      font-size: 0.8rem;
+      color: #8b949e;
+      margin-bottom: 28px;
+      line-height: 1.5;
+    }
+
     .channel-row {
       background: #0d1117;
       border: 1px solid #30363d;
       border-radius: 12px;
       padding: 10px 14px;
       margin-bottom: 20px;
-      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
     }
-    .channel-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em; color: #8b949e; margin-bottom: 3px; }
-    .channel-value { font-size: 0.95rem; font-family: monospace; color: #58a6ff; letter-spacing: 0.1em; }
+
+    .channel-label {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #8b949e;
+      margin-bottom: 3px;
+    }
+
+    .channel-value {
+      font-size: 0.85rem;
+      font-family: monospace;
+      color: #58a6ff;
+      word-break: break-all;
+    }
+
     .copy-btn {
       flex-shrink: 0;
-      background: #1c2330; border: 1px solid #30363d;
-      color: #8b949e; border-radius: 8px; padding: 6px 10px;
-      font-size: 0.72rem; cursor: pointer; transition: all 0.15s;
+      background: #1c2330;
+      border: 1px solid #30363d;
+      color: #8b949e;
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 0.72rem;
+      cursor: pointer;
+      transition: all 0.15s;
     }
     .copy-btn:active { background: #30363d; color: #e6edf3; }
+
     .btn-start {
-      width: 100%; padding: 14px; border-radius: 14px; border: none;
-      background: #238636; color: #fff;
-      font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: background 0.2s; margin-bottom: 16px;
+      width: 100%;
+      padding: 14px;
+      border-radius: 14px;
+      border: none;
+      background: #238636;
+      color: #fff;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+      margin-bottom: 16px;
     }
     .btn-start:active { background: #2ea043; }
     .btn-start:disabled { background: #21262d; color: #8b949e; cursor: not-allowed; }
+
     .status-row {
-      display: flex; align-items: center; justify-content: center;
-      gap: 8px; font-size: 0.78rem; color: #8b949e; min-height: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-size: 0.78rem;
+      color: #8b949e;
+      min-height: 22px;
     }
-    .dot { width: 8px; height: 8px; border-radius: 50%; background: #30363d; flex-shrink: 0; transition: all 0.3s; }
+
+    .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #30363d;
+      flex-shrink: 0;
+      transition: all 0.3s;
+    }
     .dot.green  { background: #3fb950; box-shadow: 0 0 6px #3fb950; animation: pulse 2s infinite; }
     .dot.yellow { background: #d29922; }
     .dot.red    { background: #f85149; }
-    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+    @keyframes pulse {
+      0%,100% { opacity: 1; } 50% { opacity: 0.5; }
+    }
+
     .battery-display {
-      margin: 20px 0 0; padding: 14px;
-      background: #0d1117; border: 1px solid #30363d; border-radius: 12px;
+      margin: 20px 0 0;
+      padding: 14px;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 12px;
       display: none;
     }
+
     .battery-display.visible { display: block; }
-    .batt-pct { font-size: 2.8rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1; margin-bottom: 4px; }
-    .batt-meta { font-size: 0.72rem; color: #8b949e; }
-    .bar-track { width: 100%; height: 6px; background: #21262d; border-radius: 6px; margin: 10px 0 0; overflow: hidden; }
-    .bar-fill  { height: 100%; border-radius: 6px; transition: width 0.5s ease, background 0.4s; }
+
+    .batt-pct {
+      font-size: 2.8rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+
+    .batt-meta {
+      font-size: 0.72rem;
+      color: #8b949e;
+    }
+
+    .bar-track {
+      width: 100%;
+      height: 6px;
+      background: #21262d;
+      border-radius: 6px;
+      margin: 10px 0 0;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 6px;
+      transition: width 0.5s ease, background 0.4s;
+    }
+
     .error-msg {
-      font-size: 0.75rem; color: #f85149;
-      background: rgba(248,81,73,0.1); border: 1px solid rgba(248,81,73,0.25);
-      border-radius: 10px; padding: 10px 12px; margin-top: 16px; line-height: 1.5; display: none;
+      font-size: 0.75rem;
+      color: #f85149;
+      background: rgba(248,81,73,0.1);
+      border: 1px solid rgba(248,81,73,0.25);
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin-top: 16px;
+      line-height: 1.5;
+      display: none;
     }
     .error-msg.show { display: block; }
   </style>
@@ -92,7 +195,8 @@
   <div class="card">
     <div class="icon-wrap">🔋</div>
     <h1>Battery Sender</h1>
-    <p class="subtitle">Open this on your Android phone in Chrome. Streams battery data to the dashboard in real time — no app needed.</p>
+    <p class="subtitle">Opens on your phone. Streams battery data to your laptop dashboard in real time.</p>
+
     <div class="channel-row">
       <div>
         <div class="channel-label">Channel ID</div>
@@ -100,24 +204,29 @@
       </div>
       <button class="copy-btn" id="copyBtn">Copy</button>
     </div>
+
     <button class="btn-start" id="startBtn">Start streaming</button>
+
     <div class="status-row">
       <div class="dot" id="dot"></div>
       <span id="statusText">Tap to begin</span>
     </div>
+
     <div class="battery-display" id="battDisplay">
       <div class="batt-pct" id="battPct">--</div>
       <div class="batt-meta" id="battMeta"></div>
       <div class="bar-track"><div class="bar-fill" id="barFill"></div></div>
     </div>
+
     <div class="error-msg" id="errorMsg"></div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/ably@1/ably.min.js"></script>
   <script>
-    // Uses Ably REST API via fetch() — zero library dependency
     const ABLY_KEY = 'xVLyHw.DeaN1A:RsWkIFGzGy6HpNXnzxLtNXmcL-4TcXV9lmqI3kRQg0Y';
-    const ABLY_REST = 'https://rest.ably.io';
 
+    // Generate a short random channel id and persist it in sessionStorage
+    // so refreshing the phone page keeps the same channel.
     function getChannelId() {
       let id = sessionStorage.getItem('bt-channel');
       if (!id) {
@@ -129,7 +238,6 @@
 
     const channelId   = getChannelId();
     const channelName = 'battery-' + channelId;
-    const authHeader  = 'Basic ' + btoa(ABLY_KEY);
 
     const channelDisplay = document.getElementById('channelDisplay');
     const copyBtn        = document.getElementById('copyBtn');
@@ -151,17 +259,32 @@
       });
     });
 
-    function showError(msg) { errorMsg.textContent = msg; errorMsg.classList.add('show'); }
-    function setStatus(state, text) { dot.className = 'dot ' + (state || ''); statusText.textContent = text; }
+    function showError(msg) {
+      errorMsg.textContent = msg;
+      errorMsg.classList.add('show');
+    }
 
-    function battColor(pct) { return pct <= 15 ? '#f85149' : pct <= 30 ? '#d29922' : '#3fb950'; }
+    function setStatus(state, text) {
+      dot.className = 'dot ' + (state || '');
+      statusText.textContent = text;
+    }
+
+    let ablyClient = null;
+    let ablyChannel = null;
+    let publishInterval = null;
+    let battery = null;
+
+    function batteryColor(pct) {
+      return pct <= 15 ? '#f85149' : pct <= 30 ? '#d29922' : '#3fb950';
+    }
 
     function renderLocal(b) {
       const pct = Math.round(b.level * 100);
-      battPct.textContent    = pct + '%';
-      battPct.style.color    = battColor(pct);
-      barFill.style.width    = pct + '%';
-      barFill.style.background = battColor(pct);
+      battPct.textContent = pct + '%';
+      battPct.style.color = batteryColor(pct);
+      barFill.style.width = pct + '%';
+      barFill.style.background = batteryColor(pct);
+
       let meta = b.charging ? '⚡ Charging' : '🔋 On battery';
       if (b.charging && isFinite(b.chargingTime)) {
         const m = Math.round(b.chargingTime / 60);
@@ -174,57 +297,66 @@
       battDisplay.classList.add('visible');
     }
 
-    async function publish(b) {
-      const payload = {
-        name: 'battery',
-        data: {
-          level:           Math.round(b.level * 100),
-          charging:        b.charging,
-          chargingTime:    b.chargingTime,
-          dischargingTime: b.dischargingTime,
-          ts:              Date.now()
-        }
+    function buildPayload(b) {
+      return {
+        level:           Math.round(b.level * 100),
+        charging:        b.charging,
+        chargingTime:    b.chargingTime,
+        dischargingTime: b.dischargingTime,
+        ts:              Date.now()
       };
+    }
+
+    async function publish() {
+      if (!ablyChannel || !battery) return;
       try {
-        const res = await fetch(`${ABLY_REST}/channels/${encodeURIComponent(channelName)}/messages`, {
-          method: 'POST',
-          headers: { 'Authorization': authHeader, 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        setStatus('green', 'Streaming live');
+        await ablyChannel.publish('battery', buildPayload(battery));
       } catch (e) {
         console.warn('publish error', e);
-        setStatus('yellow', 'Publish failed, retrying…');
       }
     }
 
-    let battery = null;
-    let publishInterval = null;
-
     async function startStreaming() {
+      // Guard: HTTPS or localhost
       if (!window.isSecureContext) {
-        showError('This page must be served over HTTPS (or localhost) for battery access.'); return;
+        showError('This page must be served over HTTPS (or localhost) for battery access.');
+        return;
       }
+      // Guard: iOS
       if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
-        showError('Battery Status API is not available on iOS/Safari. Use Chrome or Edge on Android.'); return;
+        showError('Battery Status API is not available on iOS/Safari. Use Chrome or Edge on Android.');
+        return;
       }
+      // Guard: Battery API
       if (!('getBattery' in navigator)) {
-        showError('Battery Status API not available. Open this page in Chrome or Edge on Android.'); return;
+        showError('Battery Status API not available. Open this page in Chrome or Edge on Android.');
+        return;
       }
 
       startBtn.disabled = true;
-      setStatus('yellow', 'Reading battery…');
+      setStatus('yellow', 'Connecting…');
 
       try {
         battery = await navigator.getBattery();
         renderLocal(battery);
-        await publish(battery);
 
-        publishInterval = setInterval(() => publish(battery), 5000);
+        ablyClient  = new Ably.Realtime({ key: ABLY_KEY });
+        ablyChannel = ablyClient.channels.get(channelName);
 
-        ['levelchange','chargingchange','chargingtimechange','dischargingtimechange']
-          .forEach(ev => battery.addEventListener(ev, () => { renderLocal(battery); publish(battery); }));
+        ablyClient.connection.on('connected', () => {
+          setStatus('green', 'Streaming live');
+          publish();
+          publishInterval = setInterval(publish, 5000);
+
+          // Re-publish immediately on any battery event
+          ['levelchange','chargingchange','chargingtimechange','dischargingtimechange']
+            .forEach(ev => battery.addEventListener(ev, () => { renderLocal(battery); publish(); }));
+        });
+
+        ablyClient.connection.on('failed', () => {
+          setStatus('red', 'Connection failed');
+          showError('Could not connect to relay. Check your internet connection.');
+        });
 
       } catch (err) {
         startBtn.disabled = false;
@@ -235,6 +367,7 @@
 
     startBtn.addEventListener('click', startStreaming);
 
+    // Auto-detect unsupported environments on load
     window.addEventListener('load', () => {
       if (!window.isSecureContext) {
         showError('HTTPS required. Open this page via https:// to use battery streaming.');
@@ -243,7 +376,7 @@
         showError('iOS/Safari is not supported. Use Chrome or Edge on Android.');
         startBtn.disabled = true;
       } else if (!('getBattery' in navigator)) {
-        showError('Battery API not available. Use Chrome or Edge on Android.');
+        showError('Battery API not available in this browser. Use Chrome or Edge on Android.');
         startBtn.disabled = true;
       }
     });
