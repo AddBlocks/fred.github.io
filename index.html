@@ -21,7 +21,6 @@
             padding: 20px;
         }
 
-        /* Dashboard Card */
         .dashboard {
             max-width: 550px;
             width: 100%;
@@ -34,7 +33,6 @@
             border: 1px solid rgba(255,255,255,0.5);
         }
 
-        /* Header */
         .header {
             background: #1e2b3c;
             padding: 24px 28px;
@@ -63,7 +61,6 @@
             margin-top: 8px;
         }
 
-        /* Status & Connection Area */
         .connection-panel {
             padding: 24px 28px 12px 28px;
             background: #f8fafd;
@@ -139,7 +136,6 @@
             cursor: not-allowed;
         }
 
-        /* info extra */
         .info-message {
             font-size: 0.75rem;
             color: #4a627a;
@@ -150,7 +146,16 @@
             text-align: center;
         }
 
-        /* Dashboard Grid de Estado */
+        .info-message.error {
+            background: #fdecea;
+            color: #b94040;
+        }
+
+        .info-message.warning {
+            background: #fff8e1;
+            color: #7a5c00;
+        }
+
         .stats-grid {
             padding: 20px 28px 32px 28px;
             display: grid;
@@ -230,7 +235,6 @@
             transition: width 0.3s;
         }
 
-        /* loading shimmer */
         .loading-pulse {
             animation: pulse 1.5s infinite;
         }
@@ -240,7 +244,6 @@
             100% { opacity: 1; }
         }
 
-        /* Pie */
         .footer-note {
             background: #eef3fa;
             padding: 14px;
@@ -262,11 +265,6 @@
                 font-size: 1.4rem;
             }
         }
-
-        button {
-            background: none;
-            border: none;
-        }
     </style>
 </head>
 <body>
@@ -287,11 +285,10 @@
             <button id="connectBtn" class="btn-bluetooth">🔗 Conectar Bluetooth</button>
         </div>
         <div class="info-message" id="infoMsg">
-            📲 Pulsa "Conectar" y selecciona un dispositivo BLE (p.ej, simulador / reloj / sensor)
+            📲 Pulsa "Conectar" y selecciona cualquier dispositivo BLE cercano
         </div>
     </div>
 
-    <!-- Dashboard de estado del celular / teléfono -->
     <div class="stats-grid">
         <div class="card">
             <div class="card-icon">🔋</div>
@@ -308,7 +305,7 @@
             <div class="card-label">Señal (RSSI)</div>
             <div class="card-value" id="rssiValue">--</div>
             <div class="card-unit">dBm</div>
-            <div class="sub-text">Calidad de enlace</div>
+            <div class="sub-text" id="rssiQuality">Calidad de enlace</div>
         </div>
 
         <div class="card">
@@ -332,183 +329,204 @@
         </div>
     </div>
     <div class="footer-note">
-        ⚡ Web Bluetooth API | Requiere Android con Chrome/Edge | Los datos provienen del perfil de batería y RSSI
+        ⚡ Web Bluetooth API · Requiere Chrome o Edge en Android · HTTPS obligatorio
     </div>
 </div>
 
 <script>
-    // Elementos del DOM
-    const connectBtn = document.getElementById('connectBtn');
-    const connectionTextSpan = document.getElementById('connectionText');
-    const ledIndicator = document.getElementById('ledIndicator');
-    const deviceNameSpan = document.getElementById('deviceNameDisplay');
-    const infoMsgDiv = document.getElementById('infoMsg');
-    const batteryValueSpan = document.getElementById('batteryValue');
-    const batteryBarFill = document.getElementById('batteryBarFill');
-    const rssiValueSpan = document.getElementById('rssiValue');
-    const btStateSpan = document.getElementById('btState');
-    const lastUpdateSpan = document.getElementById('lastUpdate');
-    const deviceInfoDetailSpan = document.getElementById('deviceInfoDetail');
+    // ─── DOM refs ────────────────────────────────────────────────────────────
+    const connectBtn          = document.getElementById('connectBtn');
+    const connectionTextSpan  = document.getElementById('connectionText');
+    const ledIndicator        = document.getElementById('ledIndicator');
+    const deviceNameSpan      = document.getElementById('deviceNameDisplay');
+    const infoMsgDiv          = document.getElementById('infoMsg');
+    const batteryValueSpan    = document.getElementById('batteryValue');
+    const batteryBarFill      = document.getElementById('batteryBarFill');
+    const rssiValueSpan       = document.getElementById('rssiValue');
+    const rssiQualitySpan     = document.getElementById('rssiQuality');
+    const btStateSpan         = document.getElementById('btState');
+    const lastUpdateSpan      = document.getElementById('lastUpdate');
+    const deviceInfoDetailSpan= document.getElementById('deviceInfoDetail');
 
-    // Variables de estado
-    let bluetoothDevice = null;
-    let batteryService = null;
-    let batteryLevelChar = null;
-    let rssiInterval = null;
-    let lastRssi = null;
-    let lastBattery = null;
-    let lastTimestamp = null;
+    // ─── State ───────────────────────────────────────────────────────────────
+    let bluetoothDevice    = null;
+    let batteryService     = null;
+    let batteryLevelChar   = null;
+    let updateInterval     = null;
+    let lastRssi           = null;
+    let lastBattery        = null;
+    let lastTimestamp      = null;
+    let simulatedRssi      = -65;
 
-    // Función para actualizar UI de conexión
-    function updateConnectionUI(isConnected, deviceName = null, errorMsg = null) {
+    // ─── RSSI simulation ─────────────────────────────────────────────────────
+    function simulateRssi() {
+        let change = (Math.random() - 0.5) * 3;
+        simulatedRssi = Math.min(-45, Math.max(-90, simulatedRssi + change));
+        return Math.round(simulatedRssi);
+    }
+
+    // ─── UI helpers ──────────────────────────────────────────────────────────
+    function setInfoMsg(text, type = 'normal') {
+        infoMsgDiv.innerHTML = text;
+        infoMsgDiv.className = 'info-message' + (type !== 'normal' ? ` ${type}` : '');
+    }
+
+    function updateConnectionUI(isConnected, deviceName = null, msg = null) {
         if (isConnected) {
             connectionTextSpan.innerText = 'Conectado ✓';
             ledIndicator.classList.add('active');
             if (deviceName) {
-                deviceNameSpan.innerText = deviceName.length > 24 ? deviceName.substring(0,22)+'...' : deviceName;
+                deviceNameSpan.innerText = deviceName.length > 24
+                    ? deviceName.substring(0, 22) + '...'
+                    : deviceName;
             }
             btStateSpan.innerText = 'ACTIVO';
-            if (errorMsg) infoMsgDiv.innerHTML = `✅ ${errorMsg}`;
-            else infoMsgDiv.innerHTML = `✅ Conectado vía BLE · Escuchando datos del teléfono.`;
+            setInfoMsg(msg ? `✅ ${msg}` : '✅ Conectado vía BLE · Escuchando datos del dispositivo.');
         } else {
             connectionTextSpan.innerText = 'Desconectado';
             ledIndicator.classList.remove('active');
             deviceNameSpan.innerText = '—';
             btStateSpan.innerText = 'INACTIVO';
-            if (errorMsg) infoMsgDiv.innerHTML = `⚠️ ${errorMsg}`;
-            else infoMsgDiv.innerHTML = `📲 Pulsa "Conectar" y selecciona un dispositivo BLE (p.ej, simulador / reloj / sensor)`;
+            if (msg) setInfoMsg(`⚠️ ${msg}`, 'warning');
+            else setInfoMsg('📲 Pulsa "Conectar" y selecciona cualquier dispositivo BLE cercano');
         }
     }
 
-    // Actualizar valores del dashboard con batería, rssi y tiempo
     function updateDashboard(batteryPercent, rssi, timestampMs = null) {
-        if (batteryPercent !== undefined && batteryPercent !== null) {
-            let level = Number(batteryPercent);
+        if (batteryPercent !== null && batteryPercent !== undefined) {
+            const level = Number(batteryPercent);
             if (!isNaN(level)) {
                 batteryValueSpan.innerText = level;
                 batteryBarFill.style.width = `${Math.min(100, Math.max(0, level))}%`;
-                // Cambiar color de barra según nivel
-                if (level < 20) batteryBarFill.style.backgroundColor = "#e15554";
-                else if (level < 50) batteryBarFill.style.backgroundColor = "#f4a261";
-                else batteryBarFill.style.backgroundColor = "#2bce6e";
+                batteryBarFill.style.backgroundColor =
+                    level < 20 ? '#e15554' : level < 50 ? '#f4a261' : '#2bce6e';
                 lastBattery = level;
             } else {
                 batteryValueSpan.innerText = '?';
             }
         }
 
-        if (rssi !== undefined && rssi !== null) {
-            let rssiVal = Number(rssi);
+        if (rssi !== null && rssi !== undefined) {
+            const rssiVal = Number(rssi);
             if (!isNaN(rssiVal)) {
                 rssiValueSpan.innerText = rssiVal;
-                // añadir indicador cualitativo
-                let quality = "";
-                if (rssiVal > -60) quality = "Excelente";
-                else if (rssiVal > -75) quality = "Buena";
-                else if (rssiVal > -85) quality = "Regular";
-                else quality = "Débil";
-                // mostramos como subtexto opcional, pero podemos poner en el span o tooltip
-                const rssiParent = document.getElementById('rssiValue').parentElement;
-                let sub = rssiParent.querySelector('.sub-text');
-                if (sub) sub.innerText = quality;
+                rssiQualitySpan.innerText =
+                    rssiVal > -60 ? 'Excelente' :
+                    rssiVal > -75 ? 'Buena' :
+                    rssiVal > -85 ? 'Regular' : 'Débil';
                 lastRssi = rssiVal;
             }
         }
 
-        if (timestampMs) {
-            const secondsAgo = Math.floor((Date.now() - timestampMs) / 1000);
-            lastUpdateSpan.innerText = secondsAgo < 60 ? `${secondsAgo}s` : `${Math.floor(secondsAgo/60)}m`;
-        } else if (lastTimestamp) {
-            const secondsAgo = Math.floor((Date.now() - lastTimestamp) / 1000);
-            lastUpdateSpan.innerText = secondsAgo < 60 ? `${secondsAgo}s` : `${Math.floor(secondsAgo/60)}m`;
+        const ts = timestampMs || lastTimestamp;
+        if (ts) {
+            const s = Math.floor((Date.now() - ts) / 1000);
+            lastUpdateSpan.innerText = s < 60 ? `${s}s` : `${Math.floor(s / 60)}m`;
         } else {
             lastUpdateSpan.innerText = '--';
         }
     }
 
-    // Función para leer el nivel de batería desde el servicio de batería estándar (0x180F)
+    // ─── Battery reading ─────────────────────────────────────────────────────
     async function readBatteryLevel() {
-        if (!batteryService || !batteryLevelChar) return null;
+        if (!batteryLevelChar) return null;
         try {
             const value = await batteryLevelChar.readValue();
-            const batteryPercent = value.getUint8(0);
-            return batteryPercent;
-        } catch (error) {
-            console.warn("Error reading battery:", error);
+            return value.getUint8(0);
+        } catch (err) {
+            console.warn('Error reading battery:', err);
             return null;
         }
     }
 
-    // Función para obtener RSSI activamente (Web Bluetooth soporta device.watchAdvertisements? No siempre, pero podemos usar rssi desde el dispositivo después de conectado? 
-    // En la especificación, el objeto BluetoothDevice no expone el RSSI directamente después de conectado. Sin embargo, podemos obtenerlo mediante
-    // watchAdvertisements o conectarnos y leerlo desde el GATT si el dispositivo lo proporciona, pero NO es estándar. Para demostración útil, simularemos
-    // una variación dentro de un rango realista + un valor base, pero también intentamos leer si existe característica de señal.
-    // Para una experiencia realista: muchos dispositivos BLE no comparten RSSI por GATT, pero podemos mostrar el último valor conocido
-    // al conectarnos o simular variaciones pequeñas para que el dashboard sea dinámico y refleje "estado".
-    // Para una demo funcional en android, mejor usar lectura de batería y luego simular RSSI en base a la calidad de la conexión, 
-    // pero dado que el usuario valora ver "estado del celular", haremos que el RSSI se actualice con un valor simulado realista
-    // que depende del tiempo y también podemos detectar desconexión. También podríamos recuperar el RSSI del dispositivo si implementamos
-    // advertising después de conexión, pero no es trivial. En su lugar, monitoreamos y también si el dispositivo expone un servicio de 'device information'
-    // no tendrá RSSI. Para mejorar la experiencia: simularemos un valor entre -45 y -85 dBm que fluctúa suavemente, además si el usuario
-    // se aleja, no podemos detectarlo pero mostramos una simulación coherente y hacemos énfasis en que es un estado indicativo.
-    // De igual forma actualizamos timestamp cada vez que leemos batería (cada 5s) y generamos RSSI simulado.
-    let simulatedRssi = -65; // valor inicial medio
-    function simulateRssi() {
-        // variación pequeña +/- 2 dBm y tendencia lenta
-        let change = (Math.random() - 0.5) * 3;
-        let newRssi = simulatedRssi + change;
-        newRssi = Math.min(-45, Math.max(-90, newRssi));
-        simulatedRssi = newRssi;
-        return Math.round(newRssi);
-    }
-
-    // Inicializar actualizaciones periódicas de batería y RSSI simulado (cuando está conectado)
-    let updateInterval = null;
+    // ─── Periodic updates ────────────────────────────────────────────────────
     function startPeriodicUpdates() {
         if (updateInterval) clearInterval(updateInterval);
         updateInterval = setInterval(async () => {
             if (!bluetoothDevice || !bluetoothDevice.gatt.connected) {
-                // Si el dispositivo no está conectado, detener actualizaciones periódicas y limpiar UI
-                if (updateInterval) clearInterval(updateInterval);
+                clearInterval(updateInterval);
                 updateInterval = null;
                 return;
             }
-            // Leer batería real si está disponible
-            let battery = null;
+
+            const rssiSim = simulateRssi();
+
             if (batteryService && batteryLevelChar) {
-                battery = await readBatteryLevel();
-                if (battery !== null) {
-                    lastTimestamp = Date.now();
-                    // Actualizar dashboard con batería real
-                    const rssiSim = simulateRssi(); // rssi simulado para feedback visual
-                    updateDashboard(battery, rssiSim, lastTimestamp);
-                } else {
-                    // si falla lectura, mostrar último conocido o placeholder
-                    const rssiSim = simulateRssi();
-                    updateDashboard(lastBattery !== null ? lastBattery : '?', rssiSim, lastTimestamp);
-                }
+                const battery = await readBatteryLevel();
+                if (battery !== null) lastTimestamp = Date.now();
+                updateDashboard(
+                    battery !== null ? battery : (lastBattery !== null ? lastBattery : '?'),
+                    rssiSim,
+                    lastTimestamp
+                );
             } else {
-                // Si no hay servicio de batería (dispositivo sin soporte), mostrar mensaje informativo
-                if (lastBattery === null) {
-                    batteryValueSpan.innerText = 'N/D';
-                    batteryBarFill.style.width = '0%';
-                    deviceInfoDetailSpan.innerText = 'Servicio de batería no disponible. Conecta un dispositivo con soporte BLE estándar (batería 0x180F).';
-                } else {
-                    const rssiSim = simulateRssi();
-                    updateDashboard(lastBattery, rssiSim, lastTimestamp);
-                }
+                updateDashboard(
+                    lastBattery !== null ? lastBattery : null,
+                    rssiSim,
+                    lastTimestamp
+                );
             }
-            // Actualizar también la info general del dispositivo en cada ciclo
-            if (bluetoothDevice && bluetoothDevice.name) {
-                deviceInfoDetailSpan.innerHTML = `${bluetoothDevice.name}  |  ${bluetoothDevice.id ? 'ID: '+bluetoothDevice.id.slice(0,8)+'…' : ''}`;
+
+            if (bluetoothDevice?.name) {
+                deviceInfoDetailSpan.innerHTML =
+                    `${bluetoothDevice.name}&nbsp; | &nbsp;${bluetoothDevice.id ? 'ID: ' + bluetoothDevice.id.slice(0, 8) + '…' : ''}`;
             }
-        }, 4000); // cada 4 segundos
+        }, 4000);
     }
 
-    // Función principal de conexión Bluetooth
+    // ─── Disconnect handler ──────────────────────────────────────────────────
+    function onDisconnected() {
+        // FIX #5: only registered once via addEventListener; never called manually.
+        console.log('Dispositivo desconectado');
+        if (updateInterval) { clearInterval(updateInterval); updateInterval = null; }
+
+        updateConnectionUI(false, null, 'Dispositivo desconectado. Vuelve a conectar.');
+        deviceInfoDetailSpan.innerHTML = 'Desconectado. Pulsa "Conectar" nuevamente.';
+
+        batteryValueSpan.innerText    = '--';
+        batteryBarFill.style.width    = '0%';
+        rssiValueSpan.innerText       = '--';
+        rssiQualitySpan.innerText     = 'Calidad de enlace';
+        btStateSpan.innerText         = 'INACTIVO';
+        lastUpdateSpan.innerText      = '--';
+
+        lastBattery    = null;
+        lastRssi       = null;
+        lastTimestamp  = null;
+        bluetoothDevice    = null;
+        batteryService     = null;
+        batteryLevelChar   = null;
+    }
+
+    // ─── Main connect function ───────────────────────────────────────────────
     async function connectBluetooth() {
+        // FIX #3: Web Bluetooth requires a secure context (HTTPS or localhost).
+        if (!window.isSecureContext) {
+            setInfoMsg(
+                '🔒 Esta página debe servirse por <strong>HTTPS</strong> (o localhost) para usar Bluetooth. ' +
+                'Abre la URL con https:// o usa un servidor local.',
+                'error'
+            );
+            return;
+        }
+
+        // FIX #4: Detect iOS Safari and show a clear, actionable message.
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        if (isIOS) {
+            setInfoMsg(
+                '🍎 Safari en iOS no soporta Web Bluetooth. ' +
+                'Usa <strong>Chrome o Edge en Android</strong> para conectarte.',
+                'error'
+            );
+            return;
+        }
+
         if (!navigator.bluetooth) {
-            infoMsgDiv.innerHTML = '❌ Web Bluetooth no es compatible en este navegador. Usa Chrome/Edge en Android.';
+            setInfoMsg(
+                '❌ Web Bluetooth no es compatible con este navegador. ' +
+                'Usa <strong>Chrome o Edge en Android</strong> (versión actualizada).',
+                'error'
+            );
             updateConnectionUI(false, null, 'Navegador no compatible');
             return;
         }
@@ -516,106 +534,82 @@
         try {
             connectBtn.disabled = true;
             connectBtn.innerText = '🔄 Conectando...';
-            infoMsgDiv.innerHTML = '🔍 Buscando dispositivos BLE (servicio de batería 0x180F)...';
+            setInfoMsg('🔍 Buscando dispositivos BLE cercanos...');
 
-            // Solicitar dispositivo con servicio de batería estándar (0x180F) y opcionalmente nombre del dispositivo
+            // FIX #1 & #2: Use acceptAllDevices + optionalServices instead of a
+            // restrictive services filter. The old filter blocked most real devices
+            // because they don't advertise the battery service UUID in scan data.
             const device = await navigator.bluetooth.requestDevice({
-                filters: [{ services: ['battery_service'] }], // 0x180F
-                optionalServices: ['battery_service']
+                acceptAllDevices: true,
+                optionalServices: ['battery_service'] // 0x180F — requested only if available
             });
 
             bluetoothDevice = device;
             deviceNameSpan.innerText = device.name || 'Dispositivo BLE';
-            
-            // Conectar al GATT
+
             const server = await device.gatt.connect();
-            infoMsgDiv.innerHTML = `✅ Conectado a ${device.name || 'dispositivo'}. Obteniendo servicios...`;
-            
-            // Obtener servicio de batería
+            setInfoMsg(`✅ Conectado a ${device.name || 'dispositivo'}. Obteniendo servicios...`);
+
+            // Try to access battery service — gracefully skip if unavailable.
             try {
-                batteryService = await server.getPrimaryService('battery_service');
-                batteryLevelChar = await batteryService.getCharacteristic('battery_level');
-                // Leer valor inicial de batería
+                batteryService     = await server.getPrimaryService('battery_service');
+                batteryLevelChar   = await batteryService.getCharacteristic('battery_level');
+
                 const initialBattery = await readBatteryLevel();
                 if (initialBattery !== null) {
-                    lastBattery = initialBattery;
+                    lastBattery   = initialBattery;
                     lastTimestamp = Date.now();
-                    const rssiInitial = simulateRssi();
-                    updateDashboard(initialBattery, rssiInitial, lastTimestamp);
+                    updateDashboard(initialBattery, simulateRssi(), lastTimestamp);
                 }
-                updateConnectionUI(true, device.name || 'BLE Device', 'Listo · Monitoreando batería y señal');
-                // Mostrar en info detallada
-                deviceInfoDetailSpan.innerHTML = `${device.name || 'Dispositivo'} | Batería vía GATT | RSSI simulado (calidad de enlace estimada)`;
-                // Iniciar actualizaciones periódicas (batería real + rssi simulado)
-                startPeriodicUpdates();
 
-                // Manejar desconexión
-                device.addEventListener('gattserverdisconnected', onDisconnected);
+                updateConnectionUI(true, device.name || 'BLE Device', 'Listo · Monitoreando batería y señal');
+                deviceInfoDetailSpan.innerHTML =
+                    `${device.name || 'Dispositivo'} | Batería vía GATT | RSSI estimado (simulado)`;
             } catch (err) {
-                console.error("Error al acceder a servicio de batería", err);
-                infoMsgDiv.innerHTML = `⚠️ El dispositivo no expone el servicio de batería estándar. Aun así se mostrarán datos simulados parciales.`;
-                // Poder mostrar algo de estado aunque no tenga batería
-                updateConnectionUI(true, device.name || 'Dispositivo', 'Conectado pero sin datos de batería');
-                deviceInfoDetailSpan.innerHTML = `${device.name || 'Dispositivo'} (sin servicio batería) - Estado limitado`;
-                // Iniciamos simulador de RSSI y un placeholder para batería
-                lastBattery = null;
-                batteryValueSpan.innerText = '--';
+                console.warn('Servicio de batería no disponible:', err);
+                batteryService   = null;
+                batteryLevelChar = null;
+                lastBattery      = null;
+                batteryValueSpan.innerText = 'N/D';
                 batteryBarFill.style.width = '0%';
-                startPeriodicUpdates(); // solo actualizará rssi simulado y timestamp
-                device.addEventListener('gattserverdisconnected', onDisconnected);
+                updateConnectionUI(true, device.name || 'Dispositivo', 'Conectado — sin servicio de batería estándar');
+                deviceInfoDetailSpan.innerHTML =
+                    `${device.name || 'Dispositivo'} · Sin perfil de batería (0x180F) — Estado limitado`;
             }
+
+            // FIX #5: Register disconnect listener once here; never call onDisconnected() manually.
+            device.addEventListener('gattserverdisconnected', onDisconnected, { once: true });
+            startPeriodicUpdates();
 
         } catch (error) {
             console.error('Error de conexión:', error);
-            let errorMsg = error.message;
-            if (errorMsg.includes('User cancelled')) errorMsg = 'Cancelaste la selección del dispositivo.';
-            else if (errorMsg.includes('No services')) errorMsg = 'El dispositivo no tiene el servicio requerido.';
-            updateConnectionUI(false, null, errorMsg);
-            deviceInfoDetailSpan.innerHTML = 'Error al conectar o dispositivo no válido.';
-            bluetoothDevice = null;
-            batteryService = null;
+            let msg = error.message || 'Error desconocido.';
+            if (msg.includes('User cancelled') || msg.includes('chooser'))
+                msg = 'Selección cancelada. Pulsa "Conectar" e elige un dispositivo.';
+            else if (msg.includes('No services'))
+                msg = 'El dispositivo no expone los servicios necesarios.';
+            else if (msg.includes('GATT'))
+                msg = 'Error al conectar al servidor GATT. Acerca el dispositivo e intenta de nuevo.';
+
+            updateConnectionUI(false, null, msg);
+            deviceInfoDetailSpan.innerHTML = 'Error al conectar.';
+
+            bluetoothDevice  = null;
+            batteryService   = null;
             batteryLevelChar = null;
         } finally {
-            connectBtn.disabled = false;
+            connectBtn.disabled  = false;
             connectBtn.innerText = '🔗 Conectar Bluetooth';
         }
     }
 
-    function onDisconnected(event) {
-        console.log("Dispositivo desconectado");
-        updateConnectionUI(false, null, "Dispositivo desconectado. Vuelve a conectar.");
-        deviceInfoDetailSpan.innerHTML = 'Desconectado. Pulse "Conectar" nuevamente.';
-        if (updateInterval) {
-            clearInterval(updateInterval);
-            updateInterval = null;
-        }
-        // Reset dashboard values
-        batteryValueSpan.innerText = '--';
-        batteryBarFill.style.width = '0%';
-        rssiValueSpan.innerText = '--';
-        btStateSpan.innerText = 'INACTIVO';
-        lastUpdateSpan.innerText = '--';
-        lastBattery = null;
-        lastRssi = null;
-        bluetoothDevice = null;
-        batteryService = null;
-        batteryLevelChar = null;
-        const rssiParent = document.getElementById('rssiValue').parentElement;
-        if (rssiParent) {
-            let sub = rssiParent.querySelector('.sub-text');
-            if (sub) sub.innerText = 'Calidad de enlace';
-        }
-    }
-
-    // Evento del botón
+    // ─── Button click ────────────────────────────────────────────────────────
     connectBtn.addEventListener('click', () => {
         if (bluetoothDevice && bluetoothDevice.gatt.connected) {
-            // Si ya conectado, opcional: desconectar
             if (confirm('Ya estás conectado. ¿Deseas desconectar y volver a conectar?')) {
-                if (bluetoothDevice.gatt.connected) {
-                    bluetoothDevice.gatt.disconnect();
-                }
-                onDisconnected();
+                // FIX #5: Calling gatt.disconnect() fires 'gattserverdisconnected',
+                // which triggers onDisconnected automatically. No manual call needed.
+                bluetoothDevice.gatt.disconnect();
                 setTimeout(() => connectBluetooth(), 300);
             }
         } else {
@@ -623,15 +617,35 @@
         }
     });
 
-    // Verificar compatibilidad al inicio
-    if (!navigator.bluetooth) {
-        infoMsgDiv.innerHTML = '❌ Web Bluetooth API no soportada. Usa Chrome/Edge en Android actualizado.';
-        connectBtn.disabled = true;
-        connectBtn.style.opacity = '0.5';
-    } else {
-        // Mostrar estado inicial listo
-        updateConnectionUI(false);
-    }
+    // ─── Initial compatibility check ─────────────────────────────────────────
+    (function checkCompat() {
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+
+        if (isIOS) {
+            setInfoMsg(
+                '🍎 Web Bluetooth no está disponible en iOS/Safari. Usa Chrome o Edge en Android.',
+                'error'
+            );
+            connectBtn.disabled = true;
+            connectBtn.style.opacity = '0.5';
+        } else if (!window.isSecureContext) {
+            setInfoMsg(
+                '🔒 Se requiere HTTPS para usar Bluetooth. Abre esta página desde una URL https://...',
+                'warning'
+            );
+            connectBtn.disabled = true;
+            connectBtn.style.opacity = '0.5';
+        } else if (!navigator.bluetooth) {
+            setInfoMsg(
+                '❌ Web Bluetooth no soportado. Usa Chrome o Edge actualizado en Android.',
+                'error'
+            );
+            connectBtn.disabled = true;
+            connectBtn.style.opacity = '0.5';
+        } else {
+            updateConnectionUI(false);
+        }
+    })();
 </script>
 </body>
 </html>
