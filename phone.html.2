@@ -8,34 +8,48 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: system-ui, -apple-system, sans-serif;
-      background: #0d1117; color: #e6edf3;
+      background: #0d1117;
+      color: #e6edf3;
       min-height: 100dvh;
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
       padding: 24px;
     }
     .card {
-      width: 100%; max-width: 340px;
-      background: #161b22; border: 1px solid #30363d;
-      border-radius: 24px; padding: 32px 24px; text-align: center;
+      width: 100%;
+      max-width: 340px;
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 24px;
+      padding: 32px 24px;
+      text-align: center;
     }
     .icon-wrap {
-      width: 64px; height: 64px; border-radius: 50%;
-      background: #1c2330; border: 1px solid #30363d;
+      width: 64px; height: 64px;
+      border-radius: 50%;
+      background: #1c2330;
+      border: 1px solid #30363d;
       display: flex; align-items: center; justify-content: center;
-      margin: 0 auto 20px; font-size: 28px;
+      margin: 0 auto 20px;
+      font-size: 28px;
     }
     h1 { font-size: 1.1rem; font-weight: 600; margin-bottom: 6px; }
     .subtitle { font-size: 0.8rem; color: #8b949e; margin-bottom: 28px; line-height: 1.5; }
     .channel-row {
-      background: #0d1117; border: 1px solid #30363d; border-radius: 12px;
-      padding: 10px 14px; margin-bottom: 20px;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 10px 14px;
+      margin-bottom: 20px;
       display: flex; align-items: center; justify-content: space-between; gap: 10px;
     }
     .channel-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em; color: #8b949e; margin-bottom: 3px; }
     .channel-value { font-size: 0.95rem; font-family: monospace; color: #58a6ff; letter-spacing: 0.1em; }
     .copy-btn {
-      flex-shrink: 0; background: #1c2330; border: 1px solid #30363d;
+      flex-shrink: 0;
+      background: #1c2330; border: 1px solid #30363d;
       color: #8b949e; border-radius: 8px; padding: 6px 10px;
       font-size: 0.72rem; cursor: pointer; transition: all 0.15s;
     }
@@ -43,8 +57,7 @@
     .btn-start {
       width: 100%; padding: 14px; border-radius: 14px; border: none;
       background: #238636; color: #fff;
-      font-size: 0.95rem; font-weight: 600; cursor: pointer;
-      transition: background 0.2s; margin-bottom: 16px;
+      font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: background 0.2s; margin-bottom: 16px;
     }
     .btn-start:active { background: #2ea043; }
     .btn-start:disabled { background: #21262d; color: #8b949e; cursor: not-allowed; }
@@ -79,8 +92,7 @@
   <div class="card">
     <div class="icon-wrap">🔋</div>
     <h1>Battery Sender</h1>
-    <p class="subtitle">Open this on your Android phone in Chrome. Streams battery data to the dashboard — no app, no signup needed.</p>
-
+    <p class="subtitle">Open this on your Android phone in Chrome. Streams battery data to the dashboard in real time — no app needed.</p>
     <div class="channel-row">
       <div>
         <div class="channel-label">Channel ID</div>
@@ -88,28 +100,23 @@
       </div>
       <button class="copy-btn" id="copyBtn">Copy</button>
     </div>
-
     <button class="btn-start" id="startBtn">Start streaming</button>
-
     <div class="status-row">
       <div class="dot" id="dot"></div>
       <span id="statusText">Tap to begin</span>
     </div>
-
     <div class="battery-display" id="battDisplay">
       <div class="batt-pct" id="battPct">--</div>
       <div class="batt-meta" id="battMeta"></div>
       <div class="bar-track"><div class="bar-fill" id="barFill"></div></div>
     </div>
-
     <div class="error-msg" id="errorMsg"></div>
   </div>
 
   <script>
-    // Relay: ntfy.sh — free, open-source, zero signup, zero library
-    // Publish:   POST https://ntfy.sh/{topic}   (plain fetch, no auth)
-    // Subscribe: EventSource https://ntfy.sh/{topic}/sse  (used in dashboard)
-    const NTFY = 'https://ntfy.sh';
+    // Uses Ably REST API via fetch() — zero library dependency
+    const ABLY_KEY = 'xVLyHw.DeaN1A:RsWkIFGzGy6HpNXnzxLtNXmcL-4TcXV9lmqI3kRQg0Y';
+    const ABLY_REST = 'https://rest.ably.io';
 
     function getChannelId() {
       let id = sessionStorage.getItem('bt-channel');
@@ -121,7 +128,8 @@
     }
 
     const channelId   = getChannelId();
-    const topic       = 'batt-' + channelId;   // e.g. batt-A3F7K2
+    const channelName = 'battery-' + channelId;
+    const authHeader  = 'Basic ' + btoa(ABLY_KEY);
 
     const channelDisplay = document.getElementById('channelDisplay');
     const copyBtn        = document.getElementById('copyBtn');
@@ -145,50 +153,53 @@
 
     function showError(msg) { errorMsg.textContent = msg; errorMsg.classList.add('show'); }
     function setStatus(state, text) { dot.className = 'dot ' + (state || ''); statusText.textContent = text; }
+
     function battColor(pct) { return pct <= 15 ? '#f85149' : pct <= 30 ? '#d29922' : '#3fb950'; }
 
     function renderLocal(b) {
       const pct = Math.round(b.level * 100);
-      battPct.textContent      = pct + '%';
-      battPct.style.color      = battColor(pct);
-      barFill.style.width      = pct + '%';
+      battPct.textContent    = pct + '%';
+      battPct.style.color    = battColor(pct);
+      barFill.style.width    = pct + '%';
       barFill.style.background = battColor(pct);
-
       let meta = b.charging ? '⚡ Charging' : '🔋 On battery';
       if (b.charging && isFinite(b.chargingTime)) {
         const m = Math.round(b.chargingTime / 60);
-        meta += m < 60 ? ` · full in ~${m}m` : ` · full in ~${Math.round(m / 60)}h`;
+        meta += m < 60 ? ` · full in ~${m}m` : ` · full in ~${Math.round(m/60)}h`;
       } else if (!b.charging && isFinite(b.dischargingTime)) {
         const m = Math.round(b.dischargingTime / 60);
-        meta += m < 60 ? ` · ~${m}m left` : ` · ~${Math.round(m / 60)}h left`;
+        meta += m < 60 ? ` · ~${m}m left` : ` · ~${Math.round(m/60)}h left`;
       }
       battMeta.textContent = meta;
       battDisplay.classList.add('visible');
     }
 
     async function publish(b) {
-      const payload = JSON.stringify({
-        level:           Math.round(b.level * 100),
-        charging:        b.charging,
-        chargingTime:    b.chargingTime,
-        dischargingTime: b.dischargingTime,
-        ts:              Date.now()
-      });
+      const payload = {
+        name: 'battery',
+        data: {
+          level:           Math.round(b.level * 100),
+          charging:        b.charging,
+          chargingTime:    b.chargingTime,
+          dischargingTime: b.dischargingTime,
+          ts:              Date.now()
+        }
+      };
       try {
-        const res = await fetch(`${NTFY}/${topic}`, {
+        const res = await fetch(`${ABLY_REST}/channels/${encodeURIComponent(channelName)}/messages`, {
           method: 'POST',
-          headers: { 'Content-Type': 'text/plain' },  // ntfy treats body as message string
-          body: payload
+          headers: { 'Authorization': authHeader, 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
         });
         if (!res.ok) throw new Error('HTTP ' + res.status);
-        setStatus('green', 'Streaming live ✓');
+        setStatus('green', 'Streaming live');
       } catch (e) {
         console.warn('publish error', e);
-        setStatus('yellow', 'Retrying…');
+        setStatus('yellow', 'Publish failed, retrying…');
       }
     }
 
-    let battery         = null;
+    let battery = null;
     let publishInterval = null;
 
     async function startStreaming() {
@@ -210,11 +221,9 @@
         renderLocal(battery);
         await publish(battery);
 
-        // Heartbeat every 5 seconds
         publishInterval = setInterval(() => publish(battery), 5000);
 
-        // Instant publish on any battery change
-        ['levelchange', 'chargingchange', 'chargingtimechange', 'dischargingtimechange']
+        ['levelchange','chargingchange','chargingtimechange','dischargingtimechange']
           .forEach(ev => battery.addEventListener(ev, () => { renderLocal(battery); publish(battery); }));
 
       } catch (err) {
@@ -226,7 +235,6 @@
 
     startBtn.addEventListener('click', startStreaming);
 
-    // Pre-flight compatibility check
     window.addEventListener('load', () => {
       if (!window.isSecureContext) {
         showError('HTTPS required. Open this page via https:// to use battery streaming.');
@@ -235,7 +243,7 @@
         showError('iOS/Safari is not supported. Use Chrome or Edge on Android.');
         startBtn.disabled = true;
       } else if (!('getBattery' in navigator)) {
-        showError('Battery API not available in this browser. Use Chrome or Edge on Android.');
+        showError('Battery API not available. Use Chrome or Edge on Android.');
         startBtn.disabled = true;
       }
     });
